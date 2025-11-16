@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Terminal as xterm } from "@xterm/xterm";
-import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { commands } from "../data/commands.json";
 import { colors } from "../data/colors.json";
 import "@xterm/xterm/css/xterm.css";
@@ -10,7 +10,10 @@ export default function Terminal() {
   const termInstanceRef = useRef<xterm | null>(null);
   const inputBuffer = useRef<string>("");
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialFitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialFitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const isTypingRef = useRef<boolean>(false);
 
   const styled = (text: string, ...styles: string[]) =>
     `${styles.join("")}${text}${colors.reset}`;
@@ -18,13 +21,13 @@ export default function Terminal() {
   const prompt = () => styled("Sobhi@portfolio:~$ ", colors.blue, colors.bold);
 
   const wrapText = (text: string, maxWidth: number): string => {
-    const words = text.split(' ');
+    const words = text.split(" ");
     const lines: string[] = [];
-    let currentLine = '';
+    let currentLine = "";
 
     for (const word of words) {
       const testLine = currentLine ? `${currentLine} ${word}` : word;
-      
+
       if (testLine.length <= maxWidth) {
         currentLine = testLine;
       } else {
@@ -43,35 +46,50 @@ export default function Terminal() {
         }
       }
     }
-    
+
     if (currentLine) {
       lines.push(currentLine);
     }
-    
-    return lines.join('\r\n');
+
+    return lines.join("\r\n");
   };
 
   const typeResponse = (term: xterm, text: string, delay: number = 30) => {
-    const lines = text.split('\n');
+    isTypingRef.current = true;
+    const lines = text.split("\n");
     const termWidth = term.cols;
-    
-    const processedLines = lines.map(line => {
-      if (line.includes(' - ') || line.length < termWidth) {
-        return line;
-      }
-      return wrapText(line, termWidth - 5);
-    }).join('\r\n');
-    
+
+    const processedLines = lines
+      .map((line) => {
+        if (line.includes(" - ") || line.length < termWidth) {
+          return line;
+        }
+        return wrapText(line, termWidth - 5);
+      })
+      .join("\r\n");
+
     let charIndex = 0;
+    let cancelled = false;
+
+    const cancelTyping = () => {
+      cancelled = true;
+      isTypingRef.current = false;
+    };
+
     const type = () => {
+      if (cancelled) return;
+
       if (charIndex < processedLines.length) {
         term.write(processedLines[charIndex]);
         charIndex++;
         setTimeout(type, delay);
       } else {
-        term.write('\r\n' + prompt());
+        term.write("\r\n" + prompt());
+        isTypingRef.current = false;
       }
     };
+
+    (term as any)._cancelTyping = cancelTyping;
     type();
   };
 
@@ -120,23 +138,19 @@ export default function Terminal() {
         const container = termRef.current;
         if (!container || !termInstanceRef.current) return;
 
-        // Get the actual bounding box of the container
         const rect = container.getBoundingClientRect();
         const containerWidth = rect.width;
         const containerHeight = rect.height;
 
-        // Get computed padding
         const computedStyle = window.getComputedStyle(container);
         const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
         const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
         const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
         const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
 
-        // Calculate available space
         const availableWidth = containerWidth - paddingLeft - paddingRight;
         const availableHeight = containerHeight - paddingTop - paddingBottom;
 
-        // Try to get actual cell dimensions from terminal
         const core = (term as any)._core;
         const dimensions = core?._renderService?.dimensions;
 
@@ -148,7 +162,6 @@ export default function Terminal() {
           charHeight = dimensions.actualCellHeight;
         }
 
-        // Calculate new dimensions with minimum constraints
         const cols = Math.max(40, Math.floor(availableWidth / charWidth));
         const rows = Math.max(10, Math.floor(availableHeight / charHeight));
 
@@ -157,14 +170,12 @@ export default function Terminal() {
         }
       };
 
-      // Initial fitting with multiple attempts
       initialFitTimeoutRef.current = setTimeout(() => {
         fitTerminal();
         setTimeout(fitTerminal, 150);
         setTimeout(fitTerminal, 300);
       }, 50);
 
-      // Debounced resize handler
       const handleResize = () => {
         if (resizeTimeoutRef.current) {
           clearTimeout(resizeTimeoutRef.current);
@@ -172,7 +183,7 @@ export default function Terminal() {
         resizeTimeoutRef.current = setTimeout(fitTerminal, 150);
       };
 
-      window.addEventListener('resize', handleResize);
+      window.addEventListener("resize", handleResize);
 
       term.focus();
 
@@ -181,24 +192,61 @@ export default function Terminal() {
 
       termInstanceRef.current = term;
 
-      // Welcome message
       setTimeout(() => {
+        isTypingRef.current = true;
         const termWidth = term.cols - 5;
-        term.write(`${styled("Sobhi@portfolio:~$ ", colors.blue, colors.bold)}${styled("welcome", colors.green)}`);
+        term.write(
+          `${styled("Sobhi@portfolio:~$ ", colors.blue, colors.bold)}${styled(
+            "welcome",
+            colors.green
+          )}`
+        );
         term.write(`\r\n\r\n`);
-        term.write(wrapText(`Hi, I'm Mohammed Sobhi, a Software Engineer From Egypt.`, termWidth));
+        term.write(
+          wrapText(
+            `Hi, I'm Mohammed Sobhi, a Software Engineer From Egypt.`,
+            termWidth
+          )
+        );
         term.write(`\r\n\r\n\r\n`);
-        term.write(wrapText(`Welcome to my interactive portfolio terminal!`, termWidth));
+        term.write(
+          wrapText(`Welcome to my interactive portfolio terminal!`, termWidth)
+        );
         term.write(`\r\n`);
-        const helpText = wrapText(`Type 'help' to see available commands.`, termWidth);
-        term.write(helpText.replace(/'help'/g, styled("'help'", colors.yellow, colors.bold)));
+        const helpText = wrapText(
+          `Type 'help' to see available commands.`,
+          termWidth
+        );
+        term.write(
+          helpText.replace(
+            /'help'/g,
+            styled("'help'", colors.yellow, colors.bold)
+          )
+        );
         term.write(`\r\n\r\n\r\n`);
         term.write(prompt());
+        isTypingRef.current = false;
       }, 200);
 
-      // Handle input
       term.onData((data: string) => {
         const code = data.charCodeAt(0);
+
+        if (code === 3) {
+          if (isTypingRef.current) {
+            const cancelFn = (term as any)._cancelTyping;
+            if (cancelFn) cancelFn();
+            term.write("^C\r\n");
+            inputBuffer.current = "";
+            term.write(prompt());
+            return;
+          }
+          term.write("^C\r\n");
+          inputBuffer.current = "";
+          term.write(prompt());
+          return;
+        }
+
+        if (isTypingRef.current) return;
 
         if (code === 13) {
           term.write("\r\n");
@@ -209,10 +257,6 @@ export default function Terminal() {
             inputBuffer.current = inputBuffer.current.slice(0, -1);
             term.write("\b \b");
           }
-        } else if (code === 3) {
-          term.write("^C\r\n");
-          inputBuffer.current = "";
-          term.write(prompt());
         } else if (code === 12) {
           term.clear();
         } else if (code >= 32 && code <= 126) {
@@ -221,7 +265,6 @@ export default function Terminal() {
         }
       });
 
-      // Cleanup
       return () => {
         if (initialFitTimeoutRef.current) {
           clearTimeout(initialFitTimeoutRef.current);
@@ -229,7 +272,7 @@ export default function Terminal() {
         if (resizeTimeoutRef.current) {
           clearTimeout(resizeTimeoutRef.current);
         }
-        window.removeEventListener('resize', handleResize);
+        window.removeEventListener("resize", handleResize);
         term.dispose();
         termInstanceRef.current = null;
       };
@@ -238,16 +281,31 @@ export default function Terminal() {
 
   return (
     <>
-      {/* Command nav - hidden on mobile */}
       <ul className="hidden lg:flex p-4 bg-black border-b border-green-500 flex-wrap flex-shrink-0">
-        <li className="border-r border-green-400 text-green-400 font-bold pr-4 text-xl">help</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">about</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">skills</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">projects</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">contact</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">experience</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">education</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">certifications</li>
+        <li className="border-r border-green-400 text-green-400 font-bold pr-4 text-xl">
+          help
+        </li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">
+          about
+        </li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">
+          skills
+        </li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">
+          projects
+        </li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">
+          contact
+        </li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">
+          experience
+        </li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">
+          education
+        </li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">
+          certifications
+        </li>
         <li className="text-green-400 font-bold px-4 text-xl">clear</li>
       </ul>
       <div className="flex-1 w-full bg-black overflow-hidden min-h-0">
