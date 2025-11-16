@@ -2,6 +2,7 @@
 
 :root{
   font-family: monospace;
+  word-break: keep-all;
 }
 
 .xterm-viewport::-webkit-scrollbar {
@@ -10,7 +11,13 @@
 .xterm-viewport {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  width: 90vw;
 }
 .xterm-rows{
   font-size: 18px !important;
-}
+
+}  @media (max-width: 640px) {
+    .xterm-rows{
+      font-size: 16px !important;
+    }
+  }

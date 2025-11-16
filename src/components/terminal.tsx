@@ -9,25 +9,76 @@ export default function Terminal() {
   const termRef = useRef<HTMLDivElement | null>(null);
   const termInstanceRef = useRef<xterm | null>(null);
   const inputBuffer = useRef<string>("");
+  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialFitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const styled = (text: string, ...styles: string[]) =>
     `${styles.join("")}${text}${colors.reset}`;
 
-  const prompt = () => styled("Sobhi@portfolio:~$ ", colors.blue ,colors.bold);
+  const prompt = () => styled("Sobhi@portfolio:~$ ", colors.blue, colors.bold);
 
-  const typeResponse = (term: xterm, text: string, delay: number = 30) => {
-    let charIndex = 0;
-    const type = () => {
-      if (charIndex < text.length) {
-        term.write(text[charIndex]);
-        charIndex++;
-        setTimeout(type, delay);
+  const wrapText = (text: string, maxWidth: number): string => {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      
+      if (testLine.length <= maxWidth) {
+        currentLine = testLine;
       } else {
-        term.write(prompt());
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        // If single word is longer than maxWidth, break it
+        if (word.length > maxWidth) {
+          let remaining = word;
+          while (remaining.length > maxWidth) {
+            lines.push(remaining.substring(0, maxWidth));
+            remaining = remaining.substring(maxWidth);
+          }
+          currentLine = remaining;
+        } else {
+          currentLine = word;
+        }
       }
-    };
-    type();
+    }
+    
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    return lines.join('\r\n');
   };
+
+ const typeResponse = (term: xterm, text: string, delay: number = 30) => {
+  // Split by explicit newlines first to preserve formatting
+  const lines = text.split('\n');
+  const termWidth = term.cols;
+  
+  // Process each line separately
+  const processedLines = lines.map(line => {
+    // Don't wrap lines that are already formatted (like command lists)
+    // Only wrap long paragraphs
+    if (line.includes(' - ') || line.length < termWidth) {
+      return line;
+    }
+    return wrapText(line, termWidth - 5);
+  }).join('\r\n');
+  
+  let charIndex = 0;
+  const type = () => {
+    if (charIndex < processedLines.length) {
+      term.write(processedLines[charIndex]);
+      charIndex++;
+      setTimeout(type, delay);
+    } else {
+      term.write('\r\n' + prompt());
+    }
+  };
+  type();
+};
 
   const executeCommand = (term: xterm, cmd: string) => {
     const trimmedCmd = cmd.trim().toLowerCase();
@@ -42,7 +93,6 @@ export default function Terminal() {
       const response = commands[trimmedCmd as keyof typeof commands] + "\r\n";
       typeResponse(term, response);
     } else if (trimmedCmd === "") {
-      // Do nothing for empty command
       term.write(prompt());
     } else {
       const response = `Command not found: '${cmd}'. Type 'help' for available commands.\r\n`;
@@ -51,7 +101,6 @@ export default function Terminal() {
   };
 
   useEffect(() => {
-    // Only create terminal if it doesn't exist
     if (termRef.current && !termInstanceRef.current) {
       const term = new xterm({
         cursorBlink: true,
@@ -62,119 +111,147 @@ export default function Terminal() {
           cursorAccent: "#000000",
           background: "#000000",
           foreground: "#ffffff",
-          blue: "#3b82f6", 
+          blue: "#3b82f6",
         },
         screenReaderMode: false,
         convertEol: true,
-        cols: 80, // Set default columns
-        rows: 24, // Set default rows
+        cols: 80,
+        rows: 24,
       });
 
       term.open(termRef.current);
-      
-      // Fit terminal to container
+
       const fitTerminal = () => {
         const container = termRef.current;
-        if (!container) return;
-        
-        const containerWidth = container.offsetWidth;
-        const containerHeight = container.offsetHeight;
-        
-        // Calculate cols and rows based on character size
-        const charWidth = 9; // Approximate character width in pixels
-        const charHeight = 17; // Approximate character height in pixels
-        
-        const cols = Math.floor(containerWidth / charWidth) - 2;
-        const rows = Math.floor(containerHeight / charHeight) - 2;
-        
-        term.resize(cols, rows);
+        if (!container || !termInstanceRef.current) return;
+
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+
+        // Try to get actual cell dimensions from terminal
+        const core = (term as any)._core;
+        const dimensions = core?._renderService?.dimensions;
+
+        let charWidth = 9;
+        let charHeight = 17;
+
+        if (dimensions?.actualCellWidth && dimensions?.actualCellHeight) {
+          charWidth = dimensions.actualCellWidth;
+          charHeight = dimensions.actualCellHeight;
+        }
+
+        // Account for padding (p-3 = 12px on mobile, sm:p-4 = 16px on larger screens)
+        const padding = window.innerWidth >= 640 ? 32 : 24;
+
+        const cols = Math.max(20, Math.floor((containerWidth - padding) / charWidth));
+        const rows = Math.max(10, Math.floor((containerHeight - padding) / charHeight));
+
+        if (term.cols !== cols || term.rows !== rows) {
+          term.resize(cols, rows);
+        }
       };
-      
-      // Initial fit
-      setTimeout(fitTerminal, 100);
-      
-      // Fit on window resize
-      window.addEventListener('resize', fitTerminal);
-      
+
+      // Initial fitting with multiple attempts to catch layout shifts
+      initialFitTimeoutRef.current = setTimeout(() => {
+        fitTerminal();
+        setTimeout(fitTerminal, 150);
+      }, 50);
+
+      // Debounced resize handler
+      const handleResize = () => {
+        if (resizeTimeoutRef.current) {
+          clearTimeout(resizeTimeoutRef.current);
+        }
+        resizeTimeoutRef.current = setTimeout(fitTerminal, 150);
+      };
+
+      window.addEventListener('resize', handleResize);
+
       term.focus();
-      
+
       const webLinksAddon = new WebLinksAddon();
       term.loadAddon(webLinksAddon);
-      
+
       termInstanceRef.current = term;
 
-      term.write(`${styled("Sobhi@portfolio:~$ ", colors.blue,colors.bold)}${styled("welcome", colors.green)}`);
-      term.write(`\r\n\r\n`);
-      term.write(`Hi, I'm Mohammed Sobhi, a Software Engineer From Egypt.`);
-      term.write(`\r\n\r\n\r\n`);
-      term.write(`Welcome to my interactive portfolio terminal!`);
-      term.write(`\r\n`);
-      term.write(`Type ${styled("'help'", colors.yellow, colors.bold)} to see available commands.`);
-      term.write(`\r\n\r\n\r\n`);
-      term.write(prompt());
+      // Welcome message
+      setTimeout(() => {
+        const termWidth = term.cols - 5;
+        term.write(`${styled("Sobhi@portfolio:~$ ", colors.blue, colors.bold)}${styled("welcome", colors.green)}`);
+        term.write(`\r\n\r\n`);
+        term.write(wrapText(`Hi, I'm Mohammed Sobhi, a Software Engineer From Egypt.`, termWidth));
+        term.write(`\r\n\r\n\r\n`);
+        term.write(wrapText(`Welcome to my interactive portfolio terminal!`, termWidth));
+        term.write(`\r\n`);
+        const helpText = wrapText(`Type 'help' to see available commands.`, termWidth);
+        term.write(helpText.replace(/'help'/g, styled("'help'", colors.yellow, colors.bold)));
+        term.write(`\r\n\r\n\r\n`);
+        term.write(prompt());
+      }, 200);
 
+      // Handle input
       term.onData((data: string) => {
         const code = data.charCodeAt(0);
 
-        // Handle Enter key
         if (code === 13) {
+          // Enter key
           term.write("\r\n");
           executeCommand(term, inputBuffer.current);
-          console.log("Executed command:", inputBuffer.current);
           inputBuffer.current = "";
-        }
-        // Handle Backspace (code 127 or 8)
-        else if (code === 127 || code === 8) {
+        } else if (code === 127 || code === 8) {
+          // Backspace
           if (inputBuffer.current.length > 0) {
             inputBuffer.current = inputBuffer.current.slice(0, -1);
-            term.write("\b \b"); // Move back, write space, move back again
+            term.write("\b \b");
           }
-        }
-        // Handle Ctrl+C
-        else if (code === 3) {
+        } else if (code === 3) {
+          // Ctrl+C
           term.write("^C\r\n");
           inputBuffer.current = "";
           term.write(prompt());
-        }
-
-        // Handle regular characters
-        else if (code >= 32 && code <= 126) {
+        } else if (code >= 32 && code <= 126) {
+          // Regular characters
           inputBuffer.current += data;
           term.write(styled(data, colors.green));
         }
       });
 
-      // Cleanup function
+      // Cleanup
       return () => {
-        window.removeEventListener('resize', fitTerminal);
+        if (initialFitTimeoutRef.current) {
+          clearTimeout(initialFitTimeoutRef.current);
+        }
+        if (resizeTimeoutRef.current) {
+          clearTimeout(resizeTimeoutRef.current);
+        }
+        window.removeEventListener('resize', handleResize);
         term.dispose();
         termInstanceRef.current = null;
       };
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
-    {/*command nav - hidden on mobile*/}
-    <ul className="hidden lg:flex p-4 bg-black border-b border-green-500">
-      <li className="border-r border-green-400 text-green-400 font-bold pr-4 text-xl">help</li>
-      <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">about</li>
-      <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">skills</li>
-      <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">projects</li>
-      <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">contact</li>
-      <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">experience</li>
-      <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">education</li>
-      <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">certifications</li>
-      <li className="text-green-400 font-bold px-4 text-xl">clear</li>
-    </ul>
-    <div className="w-full bg-black flex items-center justify-center overflow-hidden">
-      
-      <div
-        id="terminal"
-        ref={termRef}
-        className="w-full h-full bg-black p-3 sm:p-4"
-      ></div>
-    </div>
+      {/* Command nav - hidden on mobile */}
+      <ul className="hidden lg:flex p-4 bg-black border-b border-green-500 flex-wrap">
+        <li className="border-r border-green-400 text-green-400 font-bold pr-4 text-xl">help</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">about</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">skills</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">projects</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">contact</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">experience</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">education</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl xl:pl-0">certifications</li>
+        <li className="text-green-400 font-bold px-4 text-xl">clear</li>
+      </ul>
+      <div className="w-full xl:h-auto h-full bg-black flex items-center justify-center overflow-hidden">
+        <div
+          id="terminal"
+          ref={termRef}
+          className="w-full xl:h-auto h-full bg-black p-3 sm:p-4 overflow-hidden"
+        ></div>
+      </div>
     </>
   );
 }
