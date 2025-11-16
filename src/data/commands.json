@@ -1,0 +1,19 @@
+{
+  "commands": {
+    "help": "List of available commands:\n- help: Show this help message\n- about: About me\n- skills: My skills\n- education: My education\n- certifications: My certifications\n- projects: My projects\n- contact: Contact information\n- experience: My work experience\n- clear: Clear the terminal",
+
+    "about": "Hi, I'm Mohammed Sobhi, a Front-end Developer from Egypt. \n I build dynamic, responsive, and high-performance web applications. \n I focus on clean UI, accessibility, animations, and delivering smooth user experiences. \n I'm also quick to learn, good at teamwork, and passionate about creating high-quality digital solutions.",
+
+    "skills": "My skills include:\n- JavaScript / TypeScript\n- HTML, CSS, SASS, PugJS, Bootstrap, Tailwind\n- React, Shopify Liquid, Design Patterns, OOP\n- Responsive Design, GSAP Animations\n- JestJS (Testing)\n- GulpJS\n- jQuery\n- Git & GitHub",
+
+    "education": "Damanhour University\nBachelor of Science in Computer Science\nJuly 2020 - July 2024",
+
+    "certifications": "Professional Certifications:\n- Front-End Web Development\n- Git & GitHub\n- DEPI's Business English\n- Summer Training: MERN Stack Development",
+
+    "projects": "Some of my projects:\n\n1. The Custom Chef (nockta® - Professional Project)\nE-commerce Shopify store for customized chef apparel and accessories.\nBuilt with Shopify Liquid, React, and GSAP animations.\nLive: https://thecustomchef.com\n\n2. E-commerce Website (Angular)\nResponsive e-commerce platform with admin dashboard,\nAPI integration, and AOS scroll animations.\nLive: https://rey203.vercel.app\n\n3. Stopwatch App\nBuilt using JavaScript with start/stop/reset and DOM manipulation.\n\n4. Tic Tac Toe Game\nFocused on game logic and UI for better user interaction.\n\n5. Memory Game\nInteractive JavaScript matching game with visual feedback.\n\n6. Weather App\nExternal API integration with real-time data display.\n\n7. Currency Converter\nAPI-based tool showing real-time exchange rates.",
+
+    "contact": "You can reach me at:\nEmail: mosobhi01@gmail.com\nPhone: 01551438487\nGitHub: https://github.com/MohammedSobhiT\nLinkedIn: https://www.linkedin.com/in/mohammed-sobhi/",
+
+    "experience": "My work experience:\n\nEgyptian Armed Forces – Officer (Apr 2025 - Present)\nServing with discipline and commitment, fulfilling national duty.\n\nnockta® – Frontend Developer (Nov 2024 - Jun 2025)\nDeveloped e-commerce sites using React & Shopify Liquid. Created smooth GSAP animations. Collaborated with international remote teams ensuring performance, accessibility, and responsiveness.\n\nDamanhour University – Teaching Assistant (Oct 2024 - Feb 2025)\nAssisted in teaching programming fundamentals and guided students through practical lab exercises.\n\nDigital Egypt Cubs Initiative (DECI) – Instructor (Jul 2024 - Sep 2024)\nTaught programming fundamentals to students, achieving high engagement and comprehension rates.\n\nDigital Egypt Pioneers Initiative (DEPI) – Trainee (Apr 2024 - Nov 2024)\nStudied MEAN stack development. Led team projects, consistently delivering ahead of schedule.\n\nProdigy InfoTech – Intern (Jan 2024 - Feb 2024)\nBuilt front-end projects applying JavaScript and React, increasing user engagement significantly.\n\nInformation Technology Institute (ITI) – Intern (Jul 2023 - Aug 2023)\nLearned MERN stack through hands-on training, building modern web applications."
+  }
+}

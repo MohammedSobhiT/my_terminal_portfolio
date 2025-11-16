@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root{
+  font-family: monospace;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  display: none;
+}
+.xterm-viewport {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.xterm-rows{
+  font-size: 18px !important;
+}
