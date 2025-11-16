@@ -31,7 +31,6 @@ export default function Terminal() {
         if (currentLine) {
           lines.push(currentLine);
         }
-        // If single word is longer than maxWidth, break it
         if (word.length > maxWidth) {
           let remaining = word;
           while (remaining.length > maxWidth) {
@@ -52,33 +51,29 @@ export default function Terminal() {
     return lines.join('\r\n');
   };
 
- const typeResponse = (term: xterm, text: string, delay: number = 30) => {
-  // Split by explicit newlines first to preserve formatting
-  const lines = text.split('\n');
-  const termWidth = term.cols;
-  
-  // Process each line separately
-  const processedLines = lines.map(line => {
-    // Don't wrap lines that are already formatted (like command lists)
-    // Only wrap long paragraphs
-    if (line.includes(' - ') || line.length < termWidth) {
-      return line;
-    }
-    return wrapText(line, termWidth - 5);
-  }).join('\r\n');
-  
-  let charIndex = 0;
-  const type = () => {
-    if (charIndex < processedLines.length) {
-      term.write(processedLines[charIndex]);
-      charIndex++;
-      setTimeout(type, delay);
-    } else {
-      term.write('\r\n' + prompt());
-    }
+  const typeResponse = (term: xterm, text: string, delay: number = 30) => {
+    const lines = text.split('\n');
+    const termWidth = term.cols;
+    
+    const processedLines = lines.map(line => {
+      if (line.includes(' - ') || line.length < termWidth) {
+        return line;
+      }
+      return wrapText(line, termWidth - 5);
+    }).join('\r\n');
+    
+    let charIndex = 0;
+    const type = () => {
+      if (charIndex < processedLines.length) {
+        term.write(processedLines[charIndex]);
+        charIndex++;
+        setTimeout(type, delay);
+      } else {
+        term.write('\r\n' + prompt());
+      }
+    };
+    type();
   };
-  type();
-};
 
   const executeCommand = (term: xterm, cmd: string) => {
     const trimmedCmd = cmd.trim().toLowerCase();
@@ -125,8 +120,21 @@ export default function Terminal() {
         const container = termRef.current;
         if (!container || !termInstanceRef.current) return;
 
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
+        // Get the actual bounding box of the container
+        const rect = container.getBoundingClientRect();
+        const containerWidth = rect.width;
+        const containerHeight = rect.height;
+
+        // Get computed padding
+        const computedStyle = window.getComputedStyle(container);
+        const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+        const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+        const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+        const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+
+        // Calculate available space
+        const availableWidth = containerWidth - paddingLeft - paddingRight;
+        const availableHeight = containerHeight - paddingTop - paddingBottom;
 
         // Try to get actual cell dimensions from terminal
         const core = (term as any)._core;
@@ -140,21 +148,20 @@ export default function Terminal() {
           charHeight = dimensions.actualCellHeight;
         }
 
-        // Account for padding (p-3 = 12px on mobile, sm:p-4 = 16px on larger screens)
-        const padding = window.innerWidth >= 640 ? 32 : 24;
-
-        const cols = Math.max(20, Math.floor((containerWidth - padding) / charWidth));
-        const rows = Math.max(10, Math.floor((containerHeight - padding) / charHeight));
+        // Calculate new dimensions with minimum constraints
+        const cols = Math.max(40, Math.floor(availableWidth / charWidth));
+        const rows = Math.max(10, Math.floor(availableHeight / charHeight));
 
         if (term.cols !== cols || term.rows !== rows) {
           term.resize(cols, rows);
         }
       };
 
-      // Initial fitting with multiple attempts to catch layout shifts
+      // Initial fitting with multiple attempts
       initialFitTimeoutRef.current = setTimeout(() => {
         fitTerminal();
         setTimeout(fitTerminal, 150);
+        setTimeout(fitTerminal, 300);
       }, 50);
 
       // Debounced resize handler
@@ -194,29 +201,21 @@ export default function Terminal() {
         const code = data.charCodeAt(0);
 
         if (code === 13) {
-          // Enter key
           term.write("\r\n");
           executeCommand(term, inputBuffer.current);
           inputBuffer.current = "";
         } else if (code === 127 || code === 8) {
-          // Backspace
           if (inputBuffer.current.length > 0) {
             inputBuffer.current = inputBuffer.current.slice(0, -1);
             term.write("\b \b");
           }
         } else if (code === 3) {
-          // Ctrl+C
           term.write("^C\r\n");
           inputBuffer.current = "";
           term.write(prompt());
-        } 
-        // handle ctrl+L
-        else if(code===12){
+        } else if (code === 12) {
           term.clear();
-          
-        }
-        else if (code >= 32 && code <= 126) {
-          // Regular characters
+        } else if (code >= 32 && code <= 126) {
           inputBuffer.current += data;
           term.write(styled(data, colors.green));
         }
@@ -240,7 +239,7 @@ export default function Terminal() {
   return (
     <>
       {/* Command nav - hidden on mobile */}
-      <ul className="hidden lg:flex p-4 bg-black border-b border-green-500 flex-wrap">
+      <ul className="hidden lg:flex p-4 bg-black border-b border-green-500 flex-wrap flex-shrink-0">
         <li className="border-r border-green-400 text-green-400 font-bold pr-4 text-xl">help</li>
         <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">about</li>
         <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">skills</li>
@@ -248,14 +247,14 @@ export default function Terminal() {
         <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">contact</li>
         <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">experience</li>
         <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">education</li>
-        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl xl:pl-0">certifications</li>
+        <li className="border-r border-green-400 text-green-400 font-bold px-4 text-xl">certifications</li>
         <li className="text-green-400 font-bold px-4 text-xl">clear</li>
       </ul>
-      <div className="w-full xl:h-auto h-full bg-black flex items-center justify-center overflow-hidden">
+      <div className="flex-1 w-full bg-black overflow-hidden min-h-0">
         <div
           id="terminal"
           ref={termRef}
-          className="w-full xl:h-auto h-full bg-black p-3 sm:p-4 overflow-hidden"
+          className="w-full h-full bg-black p-3 sm:p-4"
         ></div>
       </div>
     </>
