@@ -209,7 +209,13 @@ export default function Terminal() {
           term.write("^C\r\n");
           inputBuffer.current = "";
           term.write(prompt());
-        } else if (code >= 32 && code <= 126) {
+        } 
+        // handle ctrl+L
+        else if(code===12){
+          term.clear();
+          
+        }
+        else if (code >= 32 && code <= 126) {
           // Regular characters
           inputBuffer.current += data;
           term.write(styled(data, colors.green));
